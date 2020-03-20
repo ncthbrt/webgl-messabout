@@ -1,0 +1,23 @@
+{
+    "compilerOptions": {
+        "outDir": "./dist/",
+        "sourceMap": true,
+        "lib": [
+            "ES2015",
+            "ES2017.Object",
+            "ES2016.Array.Include",
+            "DOM"
+        ],
+        "noImplicitAny": true,
+        "noUnusedLocals": true, /* Report errors on unused locals. */
+        "noUnusedParameters": true, /* Report errors on unused parameters. */
+        "noImplicitReturns": true, /* Report error when not all code paths in function return a value. */
+        "noFallthroughCasesInSwitch": true, /* Report errors for fallthrough cases in switch statement. */
+        "module": "commonjs",
+        "strict": true,
+        "target": "ES2015",
+        "jsx": "react",
+        "jsxFactory": "h",
+        "typeRoots": []
+    }
+}

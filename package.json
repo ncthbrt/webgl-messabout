@@ -1,0 +1,30 @@
+{
+  "name": "webgl-messabout",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "dev": "parcel --port 8080 --hmr-port 5010 ./src/index.html",
+    "build": "parcel build ./src/index.html",
+    "parcel": "parcel",
+    "tsc": "tsc"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ncthbrt/webgl-messabout.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ncthbrt/webgl-messabout/issues"
+  },
+  "homepage": "https://github.com/ncthbrt/webgl-messabout#readme",
+  "devDependencies": {
+    "parcel-bundler": "^1.12.4",
+    "typescript": "^3.8.3"
+  },
+  "dependencies": {
+    "preact": "^10.3.4"
+  }
+}
