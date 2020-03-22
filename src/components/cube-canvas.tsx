@@ -3,29 +3,21 @@ import { useRef, useEffect } from "preact/hooks";
 import frag from '../shaders/basic-cube.frag'
 import vert from '../shaders/basic-cube.vert'
 import { mat4 } from 'gl-matrix';
-
 import { assertTrue, throwIfNotDefined } from "../asserts";
-import { ModelData, load } from "../loaders/binary-stl";
+import { load } from "../loaders/obj-loader";
+import { initMeshBuffers, ExtendedGLBuffer, MeshWithBuffers } from "webgl-obj-loader";
 
 type ProgramInfo = {
-    program: WebGLProgram,
-    attribLocations: {
-        vertexPosition: number,
-        normals: number
-    },
-    uniformLocations: {
+    vertexPositionAttribute?: number,
+    vertexNormalAttribute?: number,
+    textureCoordAttribute?: number,
+    uniformLocations?: {
         projectionMatrix: WebGLUniformLocation,
         modelViewMatrix: WebGLUniformLocation,
         vertexColor: WebGLUniformLocation,
         normalMatrix: WebGLUniformLocation
-    },
+    }
 };
-
-type Buffers = {
-    position: WebGLBuffer,
-    normals: WebGLBuffer
-}
-
 
 function loadShader(gl: WebGLRenderingContext, type: GLenum, source: string) {
     const shader: WebGLShader | null = gl.createShader(type);
@@ -49,35 +41,6 @@ function loadShader(gl: WebGLRenderingContext, type: GLenum, source: string) {
     return shader;
 }
 
-function initBuffers(gl: WebGLRenderingContext, data: ModelData): Buffers {
-
-    // Create a buffer for the square's positions.
-
-    const positionBuffer = gl.createBuffer();
-
-    // Select the positionBuffer as the one to apply buffer
-    // operations to from here out.
-    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-
-    // Now pass the list of positions into WebGL to build the
-    // shape. We do this by creating a Float32Array from the
-    // JavaScript array, then use it to fill the current buffer.
-    gl.bufferData(gl.ARRAY_BUFFER, data.position, gl.STATIC_DRAW);
-
-    // const indexBuffer = gl.createBuffer();
-    // gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
-    // gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(cubeFaces), gl.STATIC_DRAW);
-
-    const normalBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, normalBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, data.normals, gl.STATIC_DRAW);
-
-    return {
-        position: throwIfNotDefined(positionBuffer),
-        normals: throwIfNotDefined(normalBuffer),
-    };
-}
-
 export const CubeCanvas: FunctionalComponent = () => {
     const canvasRef: Ref<HTMLCanvasElement> = useRef(null);
 
@@ -98,30 +61,35 @@ export const CubeCanvas: FunctionalComponent = () => {
                 // Clear the canvas before we start drawing on it.
                 const vertexShader = loadShader(gl, gl.VERTEX_SHADER, vert);
                 const fragmentShader = loadShader(gl, gl.FRAGMENT_SHADER, frag);
-                const shaderProgram = gl.createProgram();
+                const shaderProgram: (WebGLProgram & ProgramInfo) | null = gl.createProgram();
 
                 assertTrue(shaderProgram);
                 gl.attachShader(shaderProgram, vertexShader);
                 gl.attachShader(shaderProgram, fragmentShader);
                 gl.linkProgram(shaderProgram);
 
-                const programInfo: ProgramInfo = {
-                    program: shaderProgram,
-                    attribLocations: {
-                        vertexPosition: gl.getAttribLocation(shaderProgram, 'aVertexPosition'),
-                        normals: gl.getAttribLocation(shaderProgram, 'aVertexNormal')
-                    },
-                    uniformLocations: {
-                        projectionMatrix: throwIfNotDefined(gl.getUniformLocation(shaderProgram, 'uProjectionMatrix')),
-                        modelViewMatrix: throwIfNotDefined(gl.getUniformLocation(shaderProgram, 'uModelViewMatrix')),
-                        vertexColor: throwIfNotDefined(gl.getUniformLocation(shaderProgram, 'uVertexColor')),
-                        normalMatrix: throwIfNotDefined(gl.getUniformLocation(shaderProgram, 'uNormalMatrix'))
-                    },
+                shaderProgram.uniformLocations = {
+                    projectionMatrix: throwIfNotDefined(gl.getUniformLocation(shaderProgram, 'uProjectionMatrix')),
+                    modelViewMatrix: throwIfNotDefined(gl.getUniformLocation(shaderProgram, 'uModelViewMatrix')),
+                    vertexColor: throwIfNotDefined(gl.getUniformLocation(shaderProgram, 'uVertexColor')),
+                    normalMatrix: throwIfNotDefined(gl.getUniformLocation(shaderProgram, 'uNormalMatrix'))
                 };
-                const data = await load('/Box.stl');
-                const buffers = initBuffers(gl, data);
 
+                shaderProgram.vertexPositionAttribute = gl.getAttribLocation(shaderProgram, "aVertexPosition");
+                gl.enableVertexAttribArray(shaderProgram.vertexPositionAttribute);
 
+                shaderProgram.vertexNormalAttribute = gl.getAttribLocation(shaderProgram, "aVertexNormal");
+                gl.enableVertexAttribArray(shaderProgram.vertexNormalAttribute);
+
+                shaderProgram.textureCoordAttribute = gl.getAttribLocation(shaderProgram, "aTextureCoord");
+                gl.enableVertexAttribArray(shaderProgram.textureCoordAttribute);
+
+                const mesh = await load('/Cube.obj');
+                const mesh2 = await load('/Ellipsoid.obj');
+                const meshWithBuffers = initMeshBuffers(gl, mesh);
+                const mesh2WithBuffers = initMeshBuffers(gl, mesh2);
+
+                const meshes = [meshWithBuffers, mesh2WithBuffers];
 
                 // Create a perspective matrix, a special matrix that is
                 // used to simulate the distortion of perspective in a camera.
@@ -159,96 +127,82 @@ export const CubeCanvas: FunctionalComponent = () => {
                 mat4.invert(normalMatrix, modelViewMatrix);
                 mat4.transpose(normalMatrix, normalMatrix);
 
-                // Tell WebGL how to pull out the positions from the position
-                // buffer into the vertexPosition attribute.
-                {
-                    const numComponents = 3;  // pull out 2 values per iteration
-                    const type = gl.FLOAT;    // the data in the buffer is 32bit floats
-                    const normalize = false;  // don't normalize
-                    const stride = 0;         // how many bytes to get from one set of values to the next
-                    // 0 = use type and numComponents above
-                    const offset = 0;         // how many bytes inside the buffer to start from
-                    gl.bindBuffer(gl.ARRAY_BUFFER, buffers.position);
-                    gl.vertexAttribPointer(
-                        programInfo.attribLocations.vertexPosition,
-                        numComponents,
-                        type,
-                        normalize,
-                        stride,
-                        offset);
-                    gl.enableVertexAttribArray(
-                        programInfo.attribLocations.vertexPosition);
-                }
-
-                // Normals
-                {
-                    const numComponents = 3;
-                    const type = gl.FLOAT;
-                    const normalize = false;
-                    const stride = 0;
-                    const offset = 0;
-                    gl.bindBuffer(gl.ARRAY_BUFFER, buffers.normals);
-                    gl.vertexAttribPointer(
-                        programInfo.attribLocations.normals,
-                        numComponents,
-                        type,
-                        normalize,
-                        stride,
-                        offset);
-                    gl.enableVertexAttribArray(
-                        programInfo.attribLocations.normals);
-                }
-
-
                 // Tell WebGL to use our program when drawing
-                gl.useProgram(programInfo.program);
+                gl.useProgram(shaderProgram);
 
                 // Set the shader uniforms
                 gl.uniformMatrix4fv(
-                    programInfo.uniformLocations.projectionMatrix,
+                    shaderProgram.uniformLocations.projectionMatrix,
                     false,
                     projectionMatrix);
                 gl.uniformMatrix4fv(
-                    programInfo.uniformLocations.modelViewMatrix,
+                    shaderProgram.uniformLocations.modelViewMatrix,
                     false,
                     modelViewMatrix);
-                gl.uniform4f(programInfo.uniformLocations.vertexColor, 1.0, 1.0, 1.0, 1.0);
+                gl.uniform4f(shaderProgram.uniformLocations.vertexColor, 1.0, 1.0, 1.0, 1.0);
 
                 let time = 0;
                 function draw(now: number) {
+                    const thisGl = gl!;
+                    const thisShaderProgram = shaderProgram!;
                     now *= 0.001;  // convert to seconds
                     if (time === 0) {
                         time = now;
                     }
                     const deltaTime = (now - time);
-                    const offset = 0;
                     mat4.rotate(modelViewMatrix,  // destination matrix
                         modelViewMatrix,  // matrix to rotate
                         deltaTime * 1.6,
                         [1, 0, 1]);       // axis to rotate around
 
-                    gl!.uniformMatrix4fv(
-                        programInfo.uniformLocations.modelViewMatrix,
+                    thisGl.uniformMatrix4fv(
+                        thisShaderProgram.uniformLocations!.modelViewMatrix,
                         false,
                         modelViewMatrix);
 
                     mat4.invert(normalMatrix, modelViewMatrix);
                     mat4.transpose(normalMatrix, normalMatrix);
 
-                    gl!.uniformMatrix4fv(
-                        programInfo.uniformLocations.normalMatrix,
+                    thisGl.uniformMatrix4fv(
+                        thisShaderProgram.uniformLocations!.normalMatrix,
                         false,
                         normalMatrix);
 
-                    gl!.clear(gl!.COLOR_BUFFER_BIT | gl!.DEPTH_BUFFER_BIT);
+                    thisGl.clear(thisGl.COLOR_BUFFER_BIT | thisGl.DEPTH_BUFFER_BIT);
 
-                    gl!.drawArrays(gl!.TRIANGLES, 0, data.position.length / 3);
+                    function bindBuffer(target: number, attribute: number, extended: ExtendedGLBuffer) {
+                        thisGl.bindBuffer(target, extended);
+                        thisGl.vertexAttribPointer(attribute, extended.itemSize, thisGl.FLOAT, false, 0, 0);
+                    }
+
+                    function drawMesh(mesh: MeshWithBuffers) {
+                        if (!mesh.textures.length) {
+                            thisGl.disableVertexAttribArray(thisShaderProgram.textureCoordAttribute!);
+                        }
+                        else {
+                            // if the texture vertexAttribArray has been previously
+                            // disabled, then it needs to be re-enabled
+                            thisGl.enableVertexAttribArray(thisShaderProgram.textureCoordAttribute!);
+                            bindBuffer(thisGl.ARRAY_BUFFER, thisShaderProgram.textureCoordAttribute!, mesh.textureBuffer);
+                        }
+                        bindBuffer(thisGl.ARRAY_BUFFER, thisShaderProgram.vertexPositionAttribute!, mesh.vertexBuffer);
+                        bindBuffer(thisGl.ARRAY_BUFFER, thisShaderProgram.vertexNormalAttribute!, mesh.normalBuffer);
+                        thisGl.bindBuffer(thisGl.ELEMENT_ARRAY_BUFFER, mesh.indexBuffer);
+                        thisGl.drawElements(thisGl.TRIANGLES, mesh.indexBuffer.numItems, thisGl.UNSIGNED_SHORT, 0);
+                    }
+
+                    meshes.forEach(drawMesh);
                     time += deltaTime;
                     window.requestAnimationFrame(draw);
                 }
                 window.requestAnimationFrame(draw);
 
             })();
+            return () => {
+                if (canvasRef.current) {
+                    canvasRef.current.getContext('webgl')?.getExtension('WEBGL_lose_context')?.loseContext();
+                }
+            };
         }
     }, [canvasRef])
     return <canvas ref={canvasRef} width='1024' height='768' id='cube-canvas'></canvas>

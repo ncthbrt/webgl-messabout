@@ -1,5 +1,6 @@
 varying lowp vec4 vColor;
 varying highp vec4 vNormal;
+varying highp vec2 uv;
 
 void main() {
     highp vec3 ambientLight = vec3(0.55, 0.55, 0.55);
