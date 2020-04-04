@@ -41,6 +41,8 @@ function loadShader(gl: WebGLRenderingContext, type: GLenum, source: string) {
     return shader;
 }
 
+
+
 export const CubeCanvas: FunctionalComponent = () => {
     const canvasRef: Ref<HTMLCanvasElement> = useRef(null);
 
@@ -53,6 +55,7 @@ export const CubeCanvas: FunctionalComponent = () => {
                     console.error("WebGL is not supported on this platform");
                     return;
                 }
+                // Clear the canvas before we start drawing on it.
                 gl.clearColor(0.0, 0.0, 0.0, 0.0);  // Clear to black, fully opaque
                 gl.clearDepth(1.0);                 // Clear everything
                 gl.enable(gl.DEPTH_TEST);           // Enable depth testing
@@ -142,7 +145,7 @@ export const CubeCanvas: FunctionalComponent = () => {
                 gl.uniform4f(shaderProgram.uniformLocations.vertexColor, 1.0, 1.0, 1.0, 1.0);
 
                 let time = 0;
-                function draw(now: number) {
+                function render(now: number) {
                     const thisGl = gl!;
                     const thisShaderProgram = shaderProgram!;
                     now *= 0.001;  // convert to seconds
@@ -193,17 +196,15 @@ export const CubeCanvas: FunctionalComponent = () => {
 
                     meshes.forEach(drawMesh);
                     time += deltaTime;
-                    window.requestAnimationFrame(draw);
+                    window.requestAnimationFrame(render);
                 }
-                window.requestAnimationFrame(draw);
+                window.requestAnimationFrame(render);
 
             })();
-            return () => {
-                if (canvasRef.current) {
-                    canvasRef.current.getContext('webgl')?.getExtension('WEBGL_lose_context')?.loseContext();
-                }
-            };
         }
+        return () => {
+            canvasRef.current?.getContext('webgl')?.getExtension('WEBGL_lose_context')?.loseContext();
+        };
     }, [canvasRef])
     return <canvas ref={canvasRef} width='1024' height='768' id='cube-canvas'></canvas>
 }
